@@ -27,12 +27,12 @@ def crossdomain(origin='*', methods=None, headers=None):
         return wrapped_function
     return decorator
 
-# def get_file_hash(filepath):
-#     try:
-#         with open(filepath, "rb") as f:
-#             return hashlib.md5(f.read()).hexdigest()
-#     except FileNotFoundError:
-#         return None
+def get_file_hash(filepath):
+    try:
+        with open(filepath, "rb") as f:
+            return hashlib.md5(f.read()).hexdigest()
+    except FileNotFoundError:
+        return None
 
 @app.route("/send-data", methods=['POST'])
 def receive_data():
@@ -42,39 +42,35 @@ def receive_data():
     print("Data received:", data)
     try:
         df = pd.DataFrame(data)
-        print("DataFrame columns:", df.columns)
-        df.to_csv("received_data.csv", index=False)
+        df.to_csv(DATA_FILE, index=False)
     except Exception as e:
-        print("Error saving CSV:", e)
         return jsonify({"status": "error", "message": f"Failed to save CSV: {e}"}), 500
     return jsonify({"status": "success", "received": data}), 200
 
-
 @app.route("/")
 @crossdomain(origin='*', methods=['GET'])
-
 def AI():
-    # current_hash = get_file_hash(DATA_FILE)
-    # cached_result = None
+    current_hash = get_file_hash(DATA_FILE)
+    cached_result = None
 
-    # if os.path.exists(CACHE_FILE):
-    #     with open(CACHE_FILE, "r") as f:
-    #         cached_data = json.load(f)
-    #         if cached_data.get("csv_hash") == current_hash:
-    #             cached_result = cached_data.get("result")
+    if os.path.exists(CACHE_FILE):
+        with open(CACHE_FILE, "r") as f:
+            cached_data = json.load(f)
+            if cached_data.get("csv_hash") == current_hash:
+                cached_result = cached_data.get("result")
 
-    # if cached_result:
-    #     return jsonify(cached_result)
+    if cached_result:
+        return jsonify(cached_result)
 
-    df = DF_Preprocess('received_data.csv')
+    df = DF_Preprocess(DATA_FILE)
     results, forecast_data = Forecasts(df)
 
-    # with open(CACHE_FILE, "w") as f:
-    #     json.dump({"csv_hash": current_hash, "result": results}, f, indent=2, default=str)
+    with open(CACHE_FILE, "w") as f:
+        json.dump({"csv_hash": current_hash, "result": results}, f, indent=2, default=str)
 
     PLTExport(forecast_data)
-
-    return results
+    return jsonify(results)
 
 if __name__ == '__main__':
     app.run(port=8080, debug=True)
+    # app.run()
